@@ -1,20 +1,5 @@
 # Day 01 - Terraform
 
-Phần Terraform này cực kỳ quan trọng nếu bạn định làm DevOps, Cloud Engineer hoặc Backend có liên quan tới AWS.
-
-Nhiều người mới học Terraform thường chỉ nhớ:
-
-```bash
-terraform init
-terraform plan
-terraform apply
-terraform destroy
-```
-
-nhưng lại không hiểu Terraform thực sự giải quyết vấn đề gì.
-
-Mình sẽ đi từ gốc.
-
 ---
 
 ## 1. Terraform ra đời để giải quyết vấn đề gì?
