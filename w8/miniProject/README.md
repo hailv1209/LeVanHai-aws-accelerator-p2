@@ -55,31 +55,37 @@
 
 ### Step 1 — Generate SSH key (one-time setup)
 
-The SSH key pair is needed for Terraform to SSH into EC2 and run provisioners.
-
 ```powershell
 # From the miniProject root directory
-ssh-keygen -t rsa -b 2048 -f terraform/k8s-ec2-key -N ""
+cmd /c "ssh-keygen -t rsa -b 2048 -m PEM -f terraform/k8s-ec2-key -N """""""
 ```
 
-> ⚠️ If you already have `terraform/k8s-ec2-key` and `terraform/k8s-ec2-key.pub`, skip this step.
+> ⚠️ Must use PEM format (`-m PEM`) — Terraform SSH provisioner requires it.  
+> ⚠️ If you already have `terraform/k8s-ec2-key`, skip this step.
 
 ### Step 2 — 1-Click Deploy 🎯
 
 ```powershell
 # From miniProject root directory
-terraform -chdir=terraform init
-terraform -chdir=terraform apply -auto-approve
+.\deploy.ps1
 ```
 
-That's it! Terraform will:
-1. Create EC2, Security Groups, ALB in AWS (~2 min)
-2. Bootstrap Docker + kind + kubectl on EC2 via `user_data` (~4 min)
-3. SSH into EC2, build Docker image, load into kind (~2 min)
-4. Deploy K8s Deployment + Service via Kubernetes provider (~1 min)
-5. Register EC2 in ALB Target Group
+That's it! The script will:
+1. `terraform init` — download providers
+2. **Pass 1** `terraform apply` — Create EC2, ALB, SGs; SSH into EC2; build Docker image; load into kind; download kubeconfig (~8-10 min)
+3. **Pass 2** `terraform apply` — Kubernetes provider reads real kubeconfig → deploy Deployment + Service (~1 min)
+
+> **Why 2 passes?** Terraform initializes the Kubernetes provider at plan-time using the kubeconfig file. On the first apply, the file is still a placeholder (kind cluster doesn't exist yet). After Pass 1 downloads the real kubeconfig, Pass 2 can successfully connect to the cluster. This is the standard pattern for bootstrapping K8s with Terraform in a single workflow.
 
 **Total time: ~10-12 minutes**
+
+### Alternative — Manual steps
+
+```powershell
+terraform -chdir=terraform init
+terraform -chdir=terraform apply -auto-approve  # Pass 1
+terraform -chdir=terraform apply -auto-approve  # Pass 2
+```
 
 ### Step 3 — Get the URL
 
@@ -91,6 +97,7 @@ terraform -chdir=terraform output alb_url
 Open the URL in your browser — the Xbrain × AWS app should be live! 🎉
 
 > ⏳ Wait ~2-3 minutes after apply for ALB health checks to pass.
+
 
 ---
 
