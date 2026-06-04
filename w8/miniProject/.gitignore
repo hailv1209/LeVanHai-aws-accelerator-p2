@@ -1,0 +1,26 @@
+# ==============================================================================
+# .gitignore for K8s-on-AWS miniProject
+# ==============================================================================
+
+# Terraform state & cache
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/tfplan
+
+# Generated kubeconfig with real certs — DO NOT commit (overwritten by provisioner)
+# terraform/kubeconfig  ← placeholder is committed; real kubeconfig is gitignored below
+terraform/kubeconfig-public.yaml
+
+# SSH key files (generated once, keep locally)
+terraform/k8s-ec2-key
+terraform/k8s-ec2-key.pub
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xbrain x AWS Accelerator & Internship Program</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <header class="hero">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <div class="program-logo">
+                <img src="logo.jpg" alt="Xbrain x AWS Accelerator & Internship Program Logo">
+            </div>
+            <h1 class="main-title">
+                Xbrain <span class="and-symbol">&</span> AWS Accelerator<br>&amp; Internship Program
+            </h1>
+            <p class="sub-title">we are XBuilders</p>
+        </div>
+        <div class="intern-image">
+            <img src="intern.jpg" alt="Internship">
+        </div>
+    </header>
+
+    <footer class="footer">
+        <div class="footer-brand">
+            <div class="footer-logo">
+                <svg viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg" width="120" height="40">
+                    <circle cx="20" cy="20" r="16" fill="#F2913D"/>
+                    <text x="20" y="25" font-family="Montserrat, sans-serif" font-size="12" font-weight="800" fill="white" text-anchor="middle">X</text>
+                    <text x="52" y="25" font-family="Montserrat, sans-serif" font-size="13" font-weight="700" fill="#F2913D">BRAIN</text>
+                </svg>
+            </div>
+            <p class="footer-text">Powered by Xbrain &amp; AWS</p>
+        </div>
+        <div class="clock-wrapper">
+            <div class="clock">
+                <div class="clock-date" id="clockDate"></div>
+                <div class="clock-time" id="clockTime"></div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                            'July', 'August', 'September', 'October', 'November', 'December'];
+
+            const dayName = days[now.getDay()];
+            const monthName = months[now.getMonth()];
+            const dateNum = now.getDate();
+            const year = now.getFullYear();
+
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+
+            document.getElementById('clockDate').textContent =
+                `${dayName}, ${monthName} ${dateNum}, ${year}`;
+            document.getElementById('clockTime').textContent =
+                `${hours}:${minutes}:${seconds}`;
+        }
+
+        updateClock();
+        setInterval(updateClock, 1000);
+    </script>
+
+</body>
+</html>
