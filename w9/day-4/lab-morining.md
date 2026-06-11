@@ -245,3 +245,67 @@ kubeconform-linux-amd64.tar.gz
 <img width="1778" height="850" alt="image" src="https://github.com/user-attachments/assets/04efc2f8-20b7-44a3-b579-135b7c3b9ea1" />
 <img width="1480" height="743" alt="image" src="https://github.com/user-attachments/assets/a74a76b0-12a9-4951-a3b4-285957b41790" />
 
+
+### Lab bonus: Add more apps to test root deploy
+
+#### ArgoCD Applications
+
+Các Application được khai báo trong thư mục:
+
+```text
+argocd/apps/
+```
+
+| File | App | Path |
+|------|-----|------|
+| `fe.yaml` | `fe` | `k8s/fe/manifests.yaml` |
+| `be.yaml` | `be` | `k8s/be/manifests.yaml` |
+
+
+<img width="1371" height="791" alt="image" src="https://github.com/user-attachments/assets/f5734fa6-3bff-4592-8be4-eb12c4aed8a2" />
+
+---
+
+#### Kubernetes Manifests
+
+#### Frontend (`k8s/fe/manifests.yaml`)
+
+| Resource | Name | Sync Wave | Mô tả |
+|-----------|------|-----------|--------|
+| ConfigMap | `fe-config` | `0` | Cấu hình ứng dụng FE |
+| Deployment | `fe` | `1` | 2 replicas, image `nginx:1.27-alpine` |
+| Service | `fe` | `2` | Expose ứng dụng FE qua port `80` |
+
+##### Thứ tự apply
+
+```text
+Wave 0 → ConfigMap
+Wave 1 → Deployment
+Wave 2 → Service
+```
+
+<img width="1626" height="785" alt="image" src="https://github.com/user-attachments/assets/5deb9c40-ec66-429e-903f-63bff81a582a" />
+
+
+---
+
+#### Backend (`k8s/be/manifests.yaml`)
+
+| Resource | Name | Sync Wave | Mô tả |
+|-----------|------|-----------|--------|
+| ConfigMap | `be-config` | `0` | Cấu hình ứng dụng BE |
+| Deployment | `be` | `1` | 2 replicas, image `nginx:1.27-alpine` |
+| Service | `be` | `2` | Expose ứng dụng BE qua port `8080` |
+
+##### Thứ tự apply
+
+```text
+Wave 0 → ConfigMap
+Wave 1 → Deployment
+Wave 2 → Service
+```
+
+<img width="1610" height="773" alt="image" src="https://github.com/user-attachments/assets/1517291a-345d-4f03-acfa-27bbbdf16b51" />
+
+***Kết quả app***
+<img width="1454" height="886" alt="image" src="https://github.com/user-attachments/assets/26d88364-1964-4dfa-8701-cfc427befd29" />
