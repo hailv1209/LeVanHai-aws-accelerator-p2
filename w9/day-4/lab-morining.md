@@ -637,4 +637,6 @@ sau khi push bản lỗi
 
 <img width="786" height="742" alt="image" src="https://github.com/user-attachments/assets/74be9fdd-3457-4b69-96b0-5a4c7438de1f" />
 
+<img width="1412" height="667" alt="image" src="https://github.com/user-attachments/assets/9b328098-a75f-42dc-8b1c-6ae81d333826" />
+
 
