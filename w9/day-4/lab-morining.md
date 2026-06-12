@@ -309,3 +309,332 @@ Wave 2 → Service
 
 ***Kết quả app***
 <img width="1454" height="886" alt="image" src="https://github.com/user-attachments/assets/26d88364-1964-4dfa-8701-cfc427befd29" />
+
+
+-------
+
+## Lab thực hành buổi chiều với GitOps-ify cụm
+
+### Lab 1: Cài Prometheus + Argo Rollouts — qua GitOps
+
+***tự tạo 2 file Application (Helm) trong argocd/apps/***
+
+````
+# file: argocd/apps/kube-prometheus-stack.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: { name: kube-prometheus-stack, namespace: argocd }
+spec:
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 65.1.1
+    helm: { values: |    # repo: + ruleSelector, grafana adminPassword
+      prometheus: { prometheusSpec: { serviceMonitorSelectorNilUsesHelmValues: false } } }
+  destination: { server: https://kubernetes.default.svc, namespace: monitoring }
+  syncPolicy: { automated: { prune: true, selfHeal: true },
+                syncOptions: [CreateNamespace=true, ServerSideApply=true] }
+# file: argocd/apps/argo-rollouts.yaml — y hệt, đổi:
+#   chart: argo-rollouts ; targetRevision: 2.37.7 ; namespace: argo-rollouts
+````
+
+<img width="1639" height="824" alt="image" src="https://github.com/user-attachments/assets/8e52d838-3a08-48a7-9961-9e794d796efc" />
+<img width="1643" height="838" alt="image" src="https://github.com/user-attachments/assets/8d7e51bf-d3b4-4a38-85c1-2913c3572004" />
+
+### Lab : Viết app Flask có /metrics → build image
+
+***tự tạo 2 file Application (Helm) trong argocd/apps/***
+
+````
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 65.1.1
+    helm:
+      values: |
+        prometheus:
+          prometheusSpec:
+            serviceMonitorSelectorNilUsesHelmValues: false
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+````
+
+
+````
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-rollouts
+  namespace: argocd
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argo-rollouts
+    targetRevision: 2.37.7
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-rollouts
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+````
+
+<img width="1155" height="632" alt="image" src="https://github.com/user-attachments/assets/4c5ff61b-f46c-4ed6-afbf-eb953273debf" />
+<img width="1918" height="842" alt="image" src="https://github.com/user-attachments/assets/46504df9-c914-4704-9b99-9e471a26fcb9" />
+
+
+### Lab 2: Viết app Flask có /metrics → build image
+
+***Tự tạo 2 file trong thư mục app/, rồi build & nạp ảnh vào cụm.***
+
+````
+# file: app/app.py
+import os, random
+from flask import Flask, jsonify
+from prometheus_flask_exporter import PrometheusMetrics
+app = Flask(__name__)
+PrometheusMetrics(app)            # tự thêm /metrics
+ERR = float(os.getenv("ERROR_RATE", "0"))
+VER = os.getenv("VERSION", "v1")
+@app.get("/")
+def index():
+    if random.random() < ERR:
+        return jsonify(error="injected", version=VER), 500
+    return jsonify(ok=True, version=VER)
+@app.get("/healthz")
+def healthz(): return "ok", 200
+````
+
+````
+# file: app/Dockerfile
+FROM python:3.12-slim
+RUN pip install flask prometheus-flask-exporter
+COPY app.py /app/app.py
+WORKDIR /app
+ENV FLASK_APP=app.py
+EXPOSE 8080
+CMD ["flask","run","--host=0.0.0.0","--port=8080"]
+````
+
+<img width="1367" height="853" alt="image" src="https://github.com/user-attachments/assets/6a4b7dff-b0fd-43e3-95f1-920e3922b5c5" />
+<img width="898" height="140" alt="image" src="https://github.com/user-attachments/assets/4b361e21-4b80-4caf-9d11-b9a3b5501f8d" />
+
+### Lab 3: Viết k8s-api/ + Application → push → Prometheus thấy metric
+
+***k8s-api/api.yaml — chứa Rollout + Service + ServiceMonitor trong 1 file***
+
+````
+# --- Rollout ---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: api
+  namespace: demo
+  labels:
+    app: api
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: w9-api:1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ERROR_RATE
+              value: "0"
+            - name: VERSION
+              value: "v1"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  strategy:
+    canary:
+      steps:
+        - setWeight: 25
+        - pause: {}
+        - setWeight: 50
+        - pause:
+            duration: 30
+        - setWeight: 100
+
+---
+# --- Service ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: demo
+  labels:
+    app: api
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+  selector:
+    app: api
+
+---
+# --- ServiceMonitor ---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: api
+  namespace: demo
+  labels:
+    app: api
+    release: prometheus  # match Prometheus Operator scrape label
+spec:
+  selector:
+    matchLabels:
+      app: api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+
+````
+
+
+
+***argocd/apps/api.yaml — ArgoCD Application trỏ vào k8s-api/***
+
+````
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: api
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hailv1209/W9-lab-gitops.git
+    targetRevision: HEAD
+    path: k8s-api
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+
+````
+
+
+<img width="1607" height="246" alt="image" src="https://github.com/user-attachments/assets/ef2361b6-b5b1-4e82-a287-feff6d735e39" />
+<img width="1902" height="230" alt="image" src="https://github.com/user-attachments/assets/3cc6b9a6-1522-4133-be54-e1bfbafe594f" />
+
+### Lab 4: Rollout thả canary — promote / abort bằng tay
+
+***Sửa api.yaml đã viết ở Lab 3 (vd VERSION v1→v2) → Rollout không lên 100% ngay, mà dừng ở 25% chờ bạn.***
+
+````
+# sửa k8s-api/api.yaml: VERSION "v1" -> "v2"
+git commit -am "api v2" && git push
+# ArgoCD sync -> Rollout bắt đầu canary
+
+# theo dõi canary (cần plugin kubectl-argo-rollouts):
+kubectl argo rollouts get rollout api -n demo --watch
+
+# thấy ổn -> cho lên tiếp:
+kubectl argo rollouts promote api -n demo
+
+# thấy tệ -> hủy, về bản cũ:
+kubectl argo rollouts abort api -n demo
+````
+
+<img width="863" height="735" alt="image" src="https://github.com/user-attachments/assets/5f9e200a-f935-4612-a35e-7dadae50b632" />
+
+***# thấy ổn -> cho lên tiếp:***
+
+<img width="881" height="96" alt="image" src="https://github.com/user-attachments/assets/403c305a-9246-4f76-8dc0-f68f107d6923" />
+
+<img width="893" height="699" alt="image" src="https://github.com/user-attachments/assets/1b4ef342-de07-4256-b632-4c6597186190" />
+
+<img width="975" height="764" alt="image" src="https://github.com/user-attachments/assets/0b86fdf6-189d-457b-9592-21ed21d71301" />
+
+<img width="983" height="798" alt="image" src="https://github.com/user-attachments/assets/e5ec5d34-11a1-43c7-a851-a3b6aa639ba2" />
+
+<img width="905" height="789" alt="image" src="https://github.com/user-attachments/assets/8a25ff17-f611-4edc-961a-01da4d312fb8" />
+
+<img width="1020" height="741" alt="image" src="https://github.com/user-attachments/assets/e656cfdd-5c70-4a85-b797-8dfd9da69298" />
+
+
+----------
+
+## Chalange : Đưa bản mới api ra an toàn & tự bảo vệ
+
+***Mọi thay đổi qua Git (ArgoCD sync)***
+
+<img width="1014" height="999" alt="image" src="https://github.com/user-attachments/assets/fe6424fd-e91b-4e8a-8b2d-d5998212244e" />
+<img width="776" height="788" alt="image" src="https://github.com/user-attachments/assets/8a007cc1-e65f-4470-80d8-4758c5b56a66" />
+<img width="720" height="790" alt="image" src="https://github.com/user-attachments/assets/6ac7a5b0-f702-489d-9f2d-26ec922c8ed8" />
+<img width="696" height="777" alt="image" src="https://github.com/user-attachments/assets/fccc39ed-d2d8-4562-8ebb-f5c2f825cd46" />
+<img width="778" height="877" alt="image" src="https://github.com/user-attachments/assets/00d410f2-220c-45d1-b41f-42f8386afc9b" />
+
+***Rollback git revert***
+
+<img width="886" height="640" alt="image" src="https://github.com/user-attachments/assets/b514e526-f1b2-4c5f-8ccf-ae8fd70a7622" />
+<img width="726" height="821" alt="image" src="https://github.com/user-attachments/assets/36b4e5a1-f524-4416-a861-6eb2af66e2cf" />
+<img width="677" height="801" alt="image" src="https://github.com/user-attachments/assets/2c353c63-c94a-42aa-bd13-1fd83799df89" />
+
+***1 SLO + 1 alert fire khi chất lượng tụt → gửi về email cá nhân. Argo Rollout có tự động abort và rollback về stable version***
+<img width="950" height="423" alt="image" src="https://github.com/user-attachments/assets/715f07bd-de10-46fe-b895-fd9df832b91f" />
+
+version trước khi push bản lỗi lên : 
+
+<img width="667" height="611" alt="image" src="https://github.com/user-attachments/assets/4ffc3e26-9f02-44f0-bffb-6a5e15f29962" />
+
+sau khi push bản lỗi
+<img width="695" height="759" alt="image" src="https://github.com/user-attachments/assets/a3aa12d7-c249-4af5-acb1-89d2db850429" />
+
+<img width="786" height="742" alt="image" src="https://github.com/user-attachments/assets/74be9fdd-3457-4b69-96b0-5a4c7438de1f" />
+
+
